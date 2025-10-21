@@ -101,6 +101,21 @@ def step_login(driver, sel, user_id, user_pw, login_url):
     css_click(driver, sel["login"]["submit_button"])
     log("로그인 시도")
 
+    try:
+        WebDriverWait(driver, 2).until(EC.alert_is_present())
+        alert = driver.switch_to.alert
+        text = alert.text or ""
+        if "이미 로그인" in text or "이미 로그인이 되어 있습니다" in text:
+            alert.accept()
+            log("이미 로그인 알림 감지 — 패스하고 다음 단계로 진행")
+            return
+        else:
+
+            alert.accept()
+            log(f"로그인 중 알림 발생(무시): {text}")
+    except (Exception):
+        pass
+
 
 def step_go_reservation(driver, sel, reservation_url):
     driver.get(reservation_url)
@@ -117,15 +132,13 @@ def step_select_day(driver, chosen_date):
     """
     달력에서 chosen_date(YYYY-MM-DD)의 '일' 버튼(#day{D}) 클릭 후, 시간 선택을 수행한다.
     """
-    # 1) '일' 숫자 파싱
     try:
-        day = int(str(chosen_date).split("-")[-1])  # 'YYYY-MM-DD' 가정. 마지막 토큰이 'DD'
+        day = int(str(chosen_date).split("-")[-1])
     except Exception:
         raise ValueError(f"chosen_date 형식이 잘못되었습니다: {chosen_date}")
 
     log(f"달력에서 {day}일 버튼 클릭 시도 (#day{day})")
 
-    # 2) #day{day} 버튼 클릭 (클릭 가능 → presence→JS → 텍스트 기반 폴백)
     try:
         btn = WebDriverWait(driver, 8).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, f"#day{day}"))
@@ -145,7 +158,7 @@ def step_select_day(driver, chosen_date):
                 f"(clickable:{e1} | presence:{e2})"
             )
 
-def step_select_time(driver, chosen_date, start_hour, hours=2, click_next=True):
+def step_select_time(driver, chosen_date, start_hour, hours=2):
     """
     예약 시간 선택 (연속 hours시간 시도)
     - chosen_date: 'YYYY-MM-DD' 형식 (value='YYYYMMDDHH' 매칭용)
@@ -201,14 +214,11 @@ def step_select_time(driver, chosen_date, start_hour, hours=2, click_next=True):
 
         if not cb:
             log(f"시간 체크박스 찾기 실패: {hh}시 ({slot_id}/{slot_val})")
-            # 연속 선택이 아니어도 가능한 만큼만: 다음 시간대로 계속 시도
             continue
 
         try:
-            # 보이도록 스크롤
             driver.execute_script("arguments[0].scrollIntoView({block:'center'});", cb)
 
-            # 이미 체크되어 있지 않으면 체크 + 이벤트 디스패치
             is_checked = cb.is_selected() or (cb.get_attribute("checked") is not None)
             if not is_checked:
                 driver.execute_script("""
@@ -218,11 +228,9 @@ def step_select_time(driver, chosen_date, start_hour, hours=2, click_next=True):
                     el.dispatchEvent(new Event('change', {bubbles:true}));
                 """, cb)
 
-            # 여전히 체크가 안 되었으면 클릭 폴백
             if not (cb.is_selected() or (cb.get_attribute("checked") is not None)):
                 driver.execute_script("arguments[0].click();", cb)
 
-            # 최종 확인
             if cb.is_selected() or (cb.get_attribute("checked") is not None):
                 picked += 1
                 log(f"예약 시간 선택: {h:02d}시~{h+1:02d}시")
@@ -232,43 +240,38 @@ def step_select_time(driver, chosen_date, start_hour, hours=2, click_next=True):
         except Exception as e:
             log(f"시간 선택 중 오류: {h:02d}시 ({e})")
 
-        # 원하는 개수만큼 선택되면 종료
         if picked >= hours:
             break
 
     if picked == 0:
         raise RuntimeError("선택 가능한 시간대가 없습니다.")
 
-    if click_next:
-        log("다음단계 버튼 클릭 시도")
-        # 1) CSS로 시도
+def step_select_next(driver):
+    log("다음단계 버튼 클릭 시도")
+    try:
+        css_click(driver, "input.p-button.write[type='submit'][value='다음단계']", timeout=6)
+        log("다음단계 클릭 (CSS 매칭)")
+        return
+    except Exception:
+        pass
+    try:
+        click_input_by_value(driver, "다음단계", timeout=6)
+        log("다음단계 클릭 (input[value] 폴백)")
+        return
+    except Exception:
+        pass
+    for try_fn, desc in [
+        (lambda: click_by_text(driver, "button", "다음단계"), "button 텍스트"),
+        (lambda: click_by_text(driver, "a", "다음단계"), "a 텍스트"),
+    ]:
         try:
-            css_click(driver, "input.p-button.write[type='submit'][value='다음단계']", timeout=6)
-            log("다음단계 클릭 (CSS 매칭)")
+            try_fn()
+            log(f"다음단계 클릭 (폴백: {desc})")
             return
         except Exception:
-            pass
-        # 2) value 폴백
-        try:
-            click_input_by_value(driver, "다음단계", timeout=6)
-            log("다음단계 클릭 (input[value] 폴백)")
-            return
-        except Exception:
-            pass
-        # 3) 버튼/링크 텍스트 폴백(혹시 변형된 경우)
-        for try_fn, desc in [
-            (lambda: click_by_text(driver, "button", "다음단계"), "button 텍스트"),
-            (lambda: click_by_text(driver, "a", "다음단계"), "a 텍스트"),
-        ]:
-            try:
-                try_fn()
-                log(f"다음단계 클릭 (폴백: {desc})")
-                return
-            except Exception:
-                continue
+            continue
 
-        raise RuntimeError("다음단계 버튼을 찾지 못했습니다.")
-
+    raise RuntimeError("다음단계 버튼을 찾지 못했습니다.")
 
 # -------------------- 메인 실행 --------------------
 
@@ -297,6 +300,7 @@ def run_main(chosen_date, run_at, immediate=False, start_hour=9):
         step_go_reservation(driver, sel, RESERVATION_URL)
         step_select_day(driver, chosen_date)
         step_select_time(driver, chosen_date, start_hour, hours=2)
+        step_select_next(driver)
         log(f"✅ 예약 절차 완료 (날짜: {chosen_date}, 시간: {start_hour}시~{start_hour+2}시)")
 
     except Exception as e:
