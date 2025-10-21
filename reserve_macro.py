@@ -148,38 +148,92 @@ def step_click_apply(driver, sel):
 
     raise RuntimeError("신청하기 버튼을 찾지 못했습니다. 셀렉터/텍스트 확인 필요")
 
-def step_check_agree(driver): 
+def step_check_agree(driver, sel):
     """
-    1. 동의 라디오 버튼(id='a3') 클릭
-    2. '신청' 버튼 클릭 (<a href="javascript:fn_Submit();" class="p-button write">)
+    1. 동의 라디오 버튼(sel["agree"]["radio"]) checked 처리 (클릭 없이 JS로 set 가능)
+    2. '신청' 버튼(sel["agree"]["submit_button"]) 클릭
+       - 실패 시 fn_Submit() 직접 호출
+       - 그래도 실패하면 텍스트 기반 폴백
     """
     log("동의 후 신청하기 단계 시작")
 
     try:
-        # 1️⃣ '동의' 라디오 버튼 클릭
-        agree_radio = WebDriverWait(driver, 6).until(
-            EC.element_to_be_clickable((By.CSS_SELECTOR, "input#a3"))
+        # 1️⃣ '동의' 라디오 버튼: presence 대기 후 checked로 세팅
+        agree_radio = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, sel["agree"]["radio"]))
         )
-        driver.execute_script("arguments[0].click();", agree_radio)
-        log("동의 버튼 클릭 완료")
 
-        # 2️⃣ '신청' 버튼 클릭 (class 기반 또는 함수 기반 폴백)
+        # 이미 체크되어 있는지 확인 후, 아니면 checked 세팅 및 이벤트 디스패치
+        if not agree_radio.is_selected():
+            driver.execute_script("""
+                const el = arguments[0];
+                if (!el.checked) {
+                    el.checked = true;
+                    // 폼/리액트 등에서 반응하도록 이벤트도 함께 발생
+                    el.dispatchEvent(new Event('input', {bubbles: true}));
+                    el.dispatchEvent(new Event('change', {bubbles: true}));
+                }
+            """, agree_radio)
+            log("checked 선택")
+
+        # 혹시라도 여전히 선택이 안 되면 클릭 폴백
+        if not agree_radio.is_selected():
+            css_click(driver, sel["agree"]["radio"])
+            log("폴백 선택")
+
+        log("동의 체크 완료")
+
+        # 2️⃣ '신청' 버튼 처리
         try:
-            submit_btn = WebDriverWait(driver, 6).until(
-                EC.element_to_be_clickable((By.CSS_SELECTOR, "a.p-button.write"))
-            )
-            driver.execute_script("arguments[0].click();", submit_btn)
-            log("신청 버튼 클릭 (CSS 기반)")
+            css_click(driver, sel["agree"]["submit_button"])
+            log("신청 버튼 클릭")
         except Exception:
-            click_by_text(driver, "a", "신청")
-            log("신청 버튼 클릭 (텍스트 기반 폴백)")
-        
+            try:
+                # a 태그가 js로만 동작하는 경우 직접 함수 호출
+                driver.execute_script("if (typeof fn_Submit === 'function') fn_Submit();")
+                log("신청 함수 직접 호출(fn_Submit)")
+            except Exception:
+                # 최종 폴백: 텍스트로 찾기
+                click_by_text(driver, "a", "신청")
+                log("신청 버튼 클릭 (텍스트 기반 폴백)")
+
         log("동의 및 신청 단계 완료")
 
     except Exception as e:
         log(f"동의/신청 단계 오류: {e}")
         raise
 
+def step_select_day(driver, chosen_date):
+    """
+    달력에서 chosen_date(YYYY-MM-DD)의 '일' 버튼(#day{D}) 클릭 후, 시간 선택을 수행한다.
+    """
+    # 1) '일' 숫자 파싱
+    try:
+        day = int(str(chosen_date).split("-")[-1])  # 'YYYY-MM-DD' 가정. 마지막 토큰이 'DD'
+    except Exception:
+        raise ValueError(f"chosen_date 형식이 잘못되었습니다: {chosen_date}")
+
+    log(f"달력에서 {day}일 버튼 클릭 시도 (#day{day})")
+
+    # 2) #day{day} 버튼 클릭 (클릭 가능 → presence→JS → 텍스트 기반 폴백)
+    try:
+        btn = WebDriverWait(driver, 8).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, f"#day{day}"))
+        )
+        driver.execute_script("arguments[0].click();", btn)
+        log(f"{day}일 버튼 클릭 (#day{day}, clickable)")
+    except Exception as e1:
+        try:
+            btn = WebDriverWait(driver, 6).until(
+                EC.presence_of_element_located((By.CSS_SELECTOR, f"#day{day}"))
+            )
+            driver.execute_script("arguments[0].click();", btn)
+            log(f"{day}일 버튼 클릭 (#day{day}, presence→JS)")
+        except Exception as e2:
+            raise RuntimeError(
+                f"{day}일 버튼을 찾거나 클릭할 수 없습니다. "
+                f"(clickable:{e1} | presence:{e2})"
+            )
 
 def step_select_time(driver, start_hour, hours=2):
     """예약 시간 선택 (연속 2시간) — 없으면 가능한 만큼만 선택"""
@@ -226,9 +280,11 @@ def run_main(chosen_date, run_at, immediate=False, start_hour=9):
         step_go_reservation(driver, sel, RESERVATION_URL)
 
         # ✅ 여기서 신청하기 클릭
-        step_click_apply(driver, sel)
+        # step_click_apply(driver, sel)
         # 여기서 동의하기 버튼 클릭 후 신청하기 누름
-        step_check_agree(driver)
+        # step_check_agree(driver, sel)
+        # 날짜 선택
+        step_select_day(driver, chosen_date)
         # 이후 단계(동의/달력/인원 등)는 사이트 흐름에 맞춰 추가 가능
         step_select_time(driver, start_hour, hours=2)
         log(f"✅ 예약 절차 완료 (날짜: {chosen_date}, 시간: {start_hour}시~{start_hour+2}시)")

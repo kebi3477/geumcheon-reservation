@@ -9,33 +9,34 @@
   "reservation": {
     "page_ready_marker": ".facilities.view",
     "apply_button": "input.p-button.write[value='신청하기']"
-}
-
-,
+  },
   "consent": {
-  "privacy_required_checkbox": "label.p-form-radio__label",   
-  "privacy_submit_button": "a.p-button.write"                 
+    "privacy_required_checkbox": "label.p-form-radio__label",   
+    "privacy_submit_button": "a.p-button.write"                 
+  },
+  "agree": {
+    "radio": "input#a3",                
+    "submit_button": "a.p-button.write"
   },
   "calendar": {
-  "month_option_template": "a:contains('{M}월')",   
-  "date_cell_template": "button#day{DD}"          
+    "month_option_template": "a:contains('{M}월')",   
+    "date_cell_template": "button#day{DD}"          
   },
   "timeslot": {
-  "time_item": "label.p-form-checkbox__label"   
+    "time_item": "label.p-form-checkbox__label"   
   },
   "discount": {
-  "none_radio": "label.p-form-radio__label",  
-  "next_button": "input.p-button.write[value='다음단계']"
-},
-  "terms": {
-  "agree_checkbox": "label.p-form-checkbox__label"
-},
-"form": {
-  "people_input": "#expectNmpr",         
-  "purpose_input": "textarea#usePurps",   
-  "next_button": "input.p-button.write[value='다음단계']"
-}
-,
+    "none_radio": "label.p-form-radio__label",  
+    "next_button": "input.p-button.write[value='다음단계']"
+  },
+    "terms": {
+    "agree_checkbox": "label.p-form-checkbox__label"
+  },
+  "form": {
+    "people_input": "#expectNmpr",         
+    "purpose_input": "textarea#usePurps",   
+    "next_button": "input.p-button.write[value='다음단계']"
+  },
   "submit": {
     "final_submit_button": "input.p-button.write[value='신청서 제출']"
   },
