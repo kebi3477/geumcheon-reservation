@@ -1,0 +1,7 @@
+pyinstaller reserve_macro.py ^
+  --name GeumcheonReserve ^
+  --onedir ^                 # 폴더형 (권장)
+  --icon icon.ico ^          # 선택
+  --add-data "config_selectors.json;." ^
+  --add-data ".env;." ^
+  --noconfirm

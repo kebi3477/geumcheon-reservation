@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "pyinstaller>=6.16.0",
     "python-dotenv>=1.1.1",
     "selenium>=4.37.0",
     "webdriver-manager>=4.0.2",
