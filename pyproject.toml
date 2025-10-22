@@ -1,7 +1,7 @@
 [project]
-name = "gc-reservation-macro-v3"
+name = "gc-reservation-macro"
 version = "0.1.0"
-description = "Add your description here"
+description = "Geumcheon Reservation Macro"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
